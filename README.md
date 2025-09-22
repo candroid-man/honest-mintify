@@ -1,4 +1,5 @@
 ### What is HonestMintify?
+
 HonestMintify is a script created with the help of the Qwen3-255B (Reasoning) LLM. It is designed to automate my entire setup process for those who pay me to install Linux Mint on their device.
 ### Why?
 I created this script for Honest Repair, my phone/computer repair shop located in Fenton, Missouri. It is tailored towards my needs only. I am open-sourcing it because I believe in FOSS, and I want to be transparent with what scripts I run on customer devices.
@@ -16,6 +17,16 @@ And then run the script using:
 ```
 sudo ./system-cleaner.sh
 ```
+Or you can use `curl` to run the script directly from this repo on any Internet connected device:
+```
+curl -sL https://raw.githubusercontent.com/candroid-man/HonestMintify/main/honest-mintify.sh | sudo bash -
+```
 ### Contributing/Forking
 Feel free to contribute if you want if you can find something to make it better at what it already does, and do whatever you want with this script, I really don't care.
+
+
+
+
+
+
 
