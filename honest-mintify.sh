@@ -184,6 +184,42 @@ if [ "$libreoffice_installed" -gt 0 ] || [ "$libreoffice_executable_status" = "i
             else
                 echo "✅ No LibreOffice packages found to remove"
             fi
+
+            # Force removal of any remaining LibreOffice files
+            echo -e "\n🔍 Deep cleaning LibreOffice remnants..."
+            sudo rm -rf /usr/lib/libreoffice > /dev/null 2>&1
+            sudo rm -rf /etc/libreoffice > /dev/null 2>&1
+            sudo rm -rf /var/lib/libreoffice > /dev/null 2>&1
+            echo "✅ Deep clean completed"
+
+            # Remove ALL desktop entries (multiple locations)
+            echo -e "\n🗑️  Removing LibreOffice menu entries from ALL locations..."
+            sudo find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
+
+            # Clear menu caches - CRITICAL FOR MINT
+            echo -e "\n🔄 Refreshing menu caches..."
+            sudo update-desktop-database > /dev/null 2>&1
+            sudo gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
+            sudo gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
+
+            # Special Linux Mint menu refresh
+            if [ -x /usr/bin/mintmenu ]; then
+                echo "🔄 Refreshing Linux Mint menu cache..."
+                killall mintmenu > /dev/null 2>&1
+                sleep 2
+                /usr/bin/mintmenu > /dev/null 2>&1 &
+            fi
+
+            # INTEGRATED VERIFICATION (silent unless failure)
+            if sudo find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' 2>/dev/null | grep -q .; then
+                echo "⚠️  WARNING: Some LibreOffice menu entries might persist after reboot"
+                echo "💡 Consider logging out and back in if they reappear"
+            fi
+
+            echo "✅ Menu entries removed and caches refreshed"
         else
             echo "✅ Keeping LibreOffice system as requested 📚"
         fi
@@ -210,6 +246,42 @@ if [ "$libreoffice_installed" -gt 0 ] || [ "$libreoffice_executable_status" = "i
                 echo "✅ No LibreOffice packages found to remove"
             fi
 
+            # Force removal of any remaining LibreOffice files
+            echo -e "\n🔍 Deep cleaning LibreOffice remnants..."
+            sudo rm -rf /usr/lib/libreoffice > /dev/null 2>&1
+            sudo rm -rf /etc/libreoffice > /dev/null 2>&1
+            sudo rm -rf /var/lib/libreoffice > /dev/null 2>&1
+            echo "✅ Deep clean completed"
+
+            # Remove ALL desktop entries (multiple locations)
+            echo -e "\n🗑️  Removing LibreOffice menu entries from ALL locations..."
+            sudo find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
+
+            # Clear menu caches - CRITICAL FOR MINT
+            echo -e "\n🔄 Refreshing menu caches..."
+            sudo update-desktop-database > /dev/null 2>&1
+            sudo gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
+            sudo gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
+
+            # Special Linux Mint menu refresh
+            if [ -x /usr/bin/mintmenu ]; then
+                echo "🔄 Refreshing Linux Mint menu cache..."
+                killall mintmenu > /dev/null 2>&1
+                sleep 2
+                /usr/bin/mintmenu > /dev/null 2>&1 &
+            fi
+
+            # INTEGRATED VERIFICATION (silent unless failure)
+            if sudo find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' 2>/dev/null | grep -q .; then
+                echo "⚠️  WARNING: Some LibreOffice menu entries might persist after reboot"
+                echo "💡 Consider logging out and back in if they reappear"
+            fi
+
+            echo "✅ Menu entries removed and caches refreshed"
+
             # Install Flatpak if needed
             if ! command -v flatpak >/dev/null; then
                 echo -n "📦 Installing Flatpak... "
@@ -235,6 +307,42 @@ if [ "$libreoffice_installed" -gt 0 ] || [ "$libreoffice_executable_status" = "i
     fi
 else
     echo "✅ No LibreOffice system detected 🗑️"
+
+    # Check for stray menu entries during initial detection
+    if sudo find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' 2>/dev/null | grep -q .; then
+        echo -e "\n🔍 Found stray LibreOffice menu entries"
+        read -p "🗑️  Would you like to remove them? (y/n) " -n 1 -r
+        echo
+
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            sudo find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            sudo find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
+
+            # Clear menu caches
+            sudo update-desktop-database > /dev/null 2>&1
+            sudo gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
+            sudo gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
+
+            # Special Linux Mint menu refresh
+            if [ -x /usr/bin/mintmenu ]; then
+                killall mintmenu > /dev/null 2>&1
+                sleep 2
+                /usr/bin/mintmenu > /dev/null 2>&1 &
+            fi
+
+            # INTEGRATED VERIFICATION (silent unless failure)
+            if sudo find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' 2>/dev/null | grep -q .; then
+                echo "⚠️  WARNING: Some LibreOffice menu entries might persist after reboot"
+                echo "💡 Consider logging out and back in if they reappear"
+            else
+                echo "✅ Stray menu entries removed and caches refreshed"
+            fi
+        else
+            echo "✅ Keeping stray menu entries as requested"
+        fi
+    fi
 fi
 
 # Brave/Firefox status check - PRECISE detection
@@ -341,14 +449,6 @@ else
     else
         echo "🤷 No browsers to manage"
     fi
-fi
-
-# Final check for LibreOffice menu entry
-if [ -f "/usr/share/applications/libreoffice.desktop" ]; then
-    echo -e "\n🔍 Found LibreOffice desktop entry"
-    echo "🧹 Removing LibreOffice desktop entry..."
-    sudo rm -f /usr/share/applications/libreoffice*.desktop
-    echo "✅ LibreOffice desktop entry removed"
 fi
 
 echo -e "\n🎉✨ All operations completed successfully! ✨🎉"
