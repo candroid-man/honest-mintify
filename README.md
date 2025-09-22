@@ -6,7 +6,7 @@
 ### Why?
 I created this script for Honest Repair, my phone/computer repair shop located in Fenton, Missouri. It is tailored towards my needs only. I am open-sourcing it because I believe in FOSS, and I want to be transparent with what scripts I run on customer devices.
 ### Features
-* Removes unnecessary applications, specifically Element, Hypnotix, and Thunderbird. This is done in an attempt to minimize confusion for the technologically challenged.
+* Removes unnecessary applications, specifically Element (`mintchat`), Hypnotix, and Thunderbird. This is done in an attempt to minimize confusion for the technologically challenged.
 * Configures Mullvad DNS with DNS-over-TLS for enhanced privacy.
 * Optionally allows you to replace LibreOffice with ONLYOFFICE (downloaded from Flathub).
 * Optionally allows you to replace Firefox with Brave (using official installation script) along with a custom management policy that removes undesirable settings.
