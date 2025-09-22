@@ -27,33 +27,5 @@ curl -sL https://raw.githubusercontent.com/candroid-man/HonestMintify/main/hones
 ### Contributing/Forking
 Feel free to contribute if you want if you can find something to make it better at what it already does, and do whatever you want with this script, I really don't care.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+### Credits
+[brave-debloatinator by MulesGaming](https://github.com/MulesGaming/brave-debloatinator) was SUPER helpful. It helped me create the Brave policy and the Brave portion of the script that copies `policy.json` to the correct place on Linux systems.
