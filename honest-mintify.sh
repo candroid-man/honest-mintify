@@ -34,7 +34,7 @@ remove_package() {
     fi
 
     echo -n "📦 $package... "
-    if sudo apt remove -y "$package" > /dev/null 2>&1; then
+    if apt remove -y "$package" > /dev/null 2>&1; then
         echo "✅ removed"
         return 0
     else
@@ -53,9 +53,28 @@ flatpak_status() {
     fi
 }
 
+# Helper function for user confirmation with validation
+user_confirm() {
+    local prompt=$1
+    local response=""
+
+    while [[ ! $response =~ ^[YyNn]$ ]]; do
+        read -p "$prompt (y/n) " -n 1 -r
+        echo
+        response=$REPLY
+        REPLY=""  # Reset REPLY for next prompt
+
+        if [[ ! $response =~ ^[YyNn]$ ]]; then
+            echo "⚠️  Please enter 'y' or 'n'"
+        fi
+    done
+
+    [[ $response =~ ^[Yy]$ ]]
+}
+
 # Update package list (silenced but errors still visible)
 echo "🔄 Updating package list..."
-if ! sudo apt update > /dev/null 2>&1; then
+if ! apt update > /dev/null 2>&1; then
     echo "⚠️  Failed to update package list - continuing anyway ⚠️"
 fi
 
@@ -78,10 +97,14 @@ done
 
 # Clean up dependencies
 echo -e "\n🧹 Cleaning up dependencies..."
-if sudo apt autoremove -y > /dev/null 2>&1; then
-    echo "✅ Dependencies cleaned"
+if output=$(apt autoremove -y 2>&1); then
+    if echo "$output" | grep -q "0 upgraded, 0 newly installed"; then
+        echo "✅ No dependencies to clean"
+    else
+        echo "✅ Dependencies cleaned"
+    fi
 else
-    echo "✅ No dependencies to clean"
+    echo "⚠️  Failed to clean dependencies"
 fi
 
 # DNS Configuration status check
@@ -90,9 +113,13 @@ if [ -f "/etc/systemd/resolved.conf" ]; then
     if grep -q "DNS=194.242.2.4#base.dns.mullvad.net" /etc/systemd/resolved.conf; then
         echo "✅ Mullvad DNS already configured"
     else
+        # Backup original file
+        echo "🗄️  Backing up original resolved.conf..."
+        cp /etc/systemd/resolved.conf "/etc/systemd/resolved.conf.bak.$(date +%Y%m%d%H%M%S)"
+
         # Configure Mullvad as primary DNS
         echo "🔧 Configuring DNS settings in /etc/systemd/resolved.conf..."
-        sudo tee /etc/systemd/resolved.conf > /dev/null << 'EOF'
+        tee /etc/systemd/resolved.conf > /dev/null << 'EOF'
 [Resolve]
 #DNS=194.242.2.2#dns.mullvad.net
 #DNS=194.242.2.3#adblock.dns.mullvad.net
@@ -105,16 +132,23 @@ DNSOverTLS=yes
 Domains=~.
 EOF
 
-        sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf > /dev/null 2>&1
-        sudo systemctl restart systemd-resolved > /dev/null 2>&1
-        sudo systemctl restart NetworkManager > /dev/null 2>&1
-        echo "✅ Mullvad DNS configured successfully"
-        echo "💡 Note: You may need to manually disable/re-enable your network connection for full effect"
+        ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf > /dev/null 2>&1
+        systemctl restart systemd-resolved > /dev/null 2>&1
+        systemctl restart NetworkManager > /dev/null 2>&1
+
+        # Verify DNS configuration
+        echo -n "🔍 Verifying DNS configuration... "
+        if resolvectl query google.com > /dev/null 2>&1; then
+            echo "✅ verified"
+        else
+            echo "⚠️  configured but not working properly"
+            echo "💡 Try restarting network services or rebooting"
+        fi
     fi
 else
     echo "⚠️  resolved.conf not found - configuring DNS... ⚠️"
     # Configure Mullvad as primary DNS
-    sudo tee /etc/systemd/resolved.conf > /dev/null << 'EOF'
+    tee /etc/systemd/resolved.conf > /dev/null << 'EOF'
 [Resolve]
 #DNS=194.242.2.2#dns.mullvad.net
 #DNS=194.242.2.3#adblock.dns.mullvad.net
@@ -127,11 +161,20 @@ DNSOverTLS=yes
 Domains=~.
 EOF
 
-    sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf > /dev/null 2>&1
-    sudo systemctl enable systemd-resolved > /dev/null 2>&1
-    sudo systemctl restart systemd-resolved > /dev/null 2>&1
-    sudo systemctl restart NetworkManager > /dev/null 2>&1
-    echo "✅ Mullvad DNS configured successfully"
+    ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf > /dev/null 2>&1
+    systemctl enable systemd-resolved > /dev/null 2>&1
+    systemctl restart systemd-resolved > /dev/null 2>&1
+    systemctl restart NetworkManager > /dev/null 2>&1
+
+    # Verify DNS configuration
+    echo -n "🔍 Verifying DNS configuration... "
+    if resolvectl query google.com > /dev/null 2>&1; then
+        echo "✅ verified"
+    else
+        echo "⚠️  configured but not working properly"
+        echo "💡 Try restarting network services or rebooting"
+    fi
+
     echo "💡 Note: You may need to manually disable/re-enable your network connection for full effect"
 fi
 
@@ -164,10 +207,7 @@ if [ "$libreoffice_installed" -gt 0 ] || [ "$libreoffice_executable_status" = "i
     # Check if ONLYOFFICE is also installed
     if [ "$onlyoffice_status" = "installed" ]; then
         echo "✅ ONLYOFFICE is also installed 🎯"
-        read -p "🗑️  Would you like to completely remove LibreOffice? (y/n) " -n 1 -r
-        echo
-
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if user_confirm "🗑️  Would you like to completely remove LibreOffice?"; then
             # Get ALL LibreOffice packages including core components
             libreoffice_packages=$(dpkg -l | grep -E "^ii[[:space:]]+(libreoffice|lo-)(writer|calc|impress|draw|base|math|core|common|help|python3-uno)" | awk '{print $2}')
 
@@ -187,34 +227,45 @@ if [ "$libreoffice_installed" -gt 0 ] || [ "$libreoffice_executable_status" = "i
 
             # Force removal of any remaining LibreOffice files
             echo -e "\n🔍 Deep cleaning LibreOffice remnants..."
-            sudo rm -rf /usr/lib/libreoffice > /dev/null 2>&1
-            sudo rm -rf /etc/libreoffice > /dev/null 2>&1
-            sudo rm -rf /var/lib/libreoffice > /dev/null 2>&1
+            rm -rf /usr/lib/libreoffice > /dev/null 2>&1
+            rm -rf /etc/libreoffice > /dev/null 2>&1
+            rm -rf /var/lib/libreoffice > /dev/null 2>&1
             echo "✅ Deep clean completed"
 
             # Remove ALL desktop entries (multiple locations)
             echo -e "\n🗑️  Removing LibreOffice menu entries from ALL locations..."
-            sudo find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
+            find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
+
+            # Verify removal
+            if find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' -print -quit 2>/dev/null; then
+                echo "⚠️  Some menu entries could not be removed - check permissions"
+            fi
 
             # Clear menu caches - CRITICAL FOR MINT
             echo -e "\n🔄 Refreshing menu caches..."
-            sudo update-desktop-database > /dev/null 2>&1
-            sudo gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
-            sudo gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
+            update-desktop-database > /dev/null 2>&1
+            gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
+            gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
 
             # Special Linux Mint menu refresh
             if [ -x /usr/bin/mintmenu ]; then
                 echo "🔄 Refreshing Linux Mint menu cache..."
                 killall mintmenu > /dev/null 2>&1
-                sleep 2
+                sleep 3
                 /usr/bin/mintmenu > /dev/null 2>&1 &
+
+                # Verify cache refresh completed
+                sleep 1
+                if ! pgrep -x mintmenu > /dev/null; then
+                    /usr/bin/mintmenu > /dev/null 2>&1 &
+                fi
             fi
 
-            # INTEGRATED VERIFICATION (silent unless failure)
-            if sudo find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' 2>/dev/null | grep -q .; then
+            # Verification (silent unless failure)
+            if find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' -print -quit 2>/dev/null; then
                 echo "⚠️  WARNING: Some LibreOffice menu entries might persist after reboot"
                 echo "💡 Consider logging out and back in if they reappear"
             fi
@@ -225,10 +276,7 @@ if [ "$libreoffice_installed" -gt 0 ] || [ "$libreoffice_executable_status" = "i
         fi
     else
         echo "🚫 ONLYOFFICE is not installed"
-        read -p "🔄 Would you like to replace LibreOffice with ONLYOFFICE? (y/n) " -n 1 -r
-        echo
-
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if user_confirm "🔄 Would you like to replace LibreOffice with ONLYOFFICE?"; then
             # Get ALL LibreOffice packages including core components
             libreoffice_packages=$(dpkg -l | grep -E "^ii[[:space:]]+(libreoffice|lo-)(writer|calc|impress|draw|base|math|core|common|help|python3-uno)" | awk '{print $2}')
 
@@ -248,34 +296,45 @@ if [ "$libreoffice_installed" -gt 0 ] || [ "$libreoffice_executable_status" = "i
 
             # Force removal of any remaining LibreOffice files
             echo -e "\n🔍 Deep cleaning LibreOffice remnants..."
-            sudo rm -rf /usr/lib/libreoffice > /dev/null 2>&1
-            sudo rm -rf /etc/libreoffice > /dev/null 2>&1
-            sudo rm -rf /var/lib/libreoffice > /dev/null 2>&1
+            rm -rf /usr/lib/libreoffice > /dev/null 2>&1
+            rm -rf /etc/libreoffice > /dev/null 2>&1
+            rm -rf /var/lib/libreoffice > /dev/null 2>&1
             echo "✅ Deep clean completed"
 
             # Remove ALL desktop entries (multiple locations)
             echo -e "\n🗑️  Removing LibreOffice menu entries from ALL locations..."
-            sudo find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
+            find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
+
+            # Verify removal
+            if find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' -print -quit 2>/dev/null; then
+                echo "⚠️  Some menu entries could not be removed - check permissions"
+            fi
 
             # Clear menu caches - CRITICAL FOR MINT
             echo -e "\n🔄 Refreshing menu caches..."
-            sudo update-desktop-database > /dev/null 2>&1
-            sudo gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
-            sudo gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
+            update-desktop-database > /dev/null 2>&1
+            gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
+            gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
 
             # Special Linux Mint menu refresh
             if [ -x /usr/bin/mintmenu ]; then
                 echo "🔄 Refreshing Linux Mint menu cache..."
                 killall mintmenu > /dev/null 2>&1
-                sleep 2
+                sleep 3
                 /usr/bin/mintmenu > /dev/null 2>&1 &
+
+                # Verify cache refresh completed
+                sleep 1
+                if ! pgrep -x mintmenu > /dev/null; then
+                    /usr/bin/mintmenu > /dev/null 2>&1 &
+                fi
             fi
 
-            # INTEGRATED VERIFICATION (silent unless failure)
-            if sudo find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' 2>/dev/null | grep -q .; then
+            # Verification (silent unless failure)
+            if find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' -print -quit 2>/dev/null; then
                 echo "⚠️  WARNING: Some LibreOffice menu entries might persist after reboot"
                 echo "💡 Consider logging out and back in if they reappear"
             fi
@@ -285,8 +344,8 @@ if [ "$libreoffice_installed" -gt 0 ] || [ "$libreoffice_executable_status" = "i
             # Install Flatpak if needed
             if ! command -v flatpak >/dev/null; then
                 echo -n "📦 Installing Flatpak... "
-                if sudo apt install -y flatpak > /dev/null 2>&1; then
-                    sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo > /dev/null 2>&1
+                if apt install -y flatpak > /dev/null 2>&1; then
+                    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo > /dev/null 2>&1
                     echo "✅"
                 else
                     echo "❌"
@@ -309,31 +368,39 @@ else
     echo "✅ No LibreOffice system detected 🗑️"
 
     # Check for stray menu entries during initial detection
-    if sudo find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' 2>/dev/null | grep -q .; then
+    if find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' -print -quit 2>/dev/null; then
         echo -e "\n🔍 Found stray LibreOffice menu entries"
-        read -p "🗑️  Would you like to remove them? (y/n) " -n 1 -r
-        echo
+        if user_confirm "🗑️  Would you like to remove them?"; then
+            find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
+            find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
 
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            sudo find /usr/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find /usr/local/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find ~/.local/share/applications -name '*libreoffice*' -exec rm -f {} \;
-            sudo find /etc/xdg/autostart -name '*libreoffice*' -exec rm -f {} \;
+            # Verify removal
+            if find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' -print -quit 2>/dev/null; then
+                echo "⚠️  Some menu entries could not be removed - check permissions"
+            fi
 
             # Clear menu caches
-            sudo update-desktop-database > /dev/null 2>&1
-            sudo gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
-            sudo gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
+            update-desktop-database > /dev/null 2>&1
+            gtk-update-icon-cache /usr/share/icons/gnome > /dev/null 2>&1
+            gtk-update-icon-cache /usr/share/icons/hicolor > /dev/null 2>&1
 
             # Special Linux Mint menu refresh
             if [ -x /usr/bin/mintmenu ]; then
                 killall mintmenu > /dev/null 2>&1
-                sleep 2
+                sleep 3
                 /usr/bin/mintmenu > /dev/null 2>&1 &
+
+                # Verify cache refresh completed
+                sleep 1
+                if ! pgrep -x mintmenu > /dev/null; then
+                    /usr/bin/mintmenu > /dev/null 2>&1 &
+                fi
             fi
 
-            # INTEGRATED VERIFICATION (silent unless failure)
-            if sudo find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' 2>/dev/null | grep -q .; then
+            # Verification
+            if find /usr/share/applications /usr/local/share/applications ~/.local/share/applications /etc/xdg/autostart -name '*libreoffice*' -print -quit 2>/dev/null; then
                 echo "⚠️  WARNING: Some LibreOffice menu entries might persist after reboot"
                 echo "💡 Consider logging out and back in if they reappear"
             else
@@ -379,10 +446,7 @@ fi
 
 # Browser decision - more precise question based on what's installed
 if [ "$firefox_status" = "installed" ] && $brave_installed; then
-    read -p "_BOTH browsers are installed. 🗑️  Would you like to remove Firefox? (y/n) " -n 1 -r
-    echo
-
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if user_confirm "_BOTH browsers are installed. 🗑️  Would you like to remove Firefox?"; then
         # Remove ALL Firefox variants
         echo -e "\n🧹 Removing Firefox variants:"
         for firefox_pkg in firefox firefox-esr firefox-mozilla-build; do
@@ -394,10 +458,7 @@ if [ "$firefox_status" = "installed" ] && $brave_installed; then
         echo "✅ Keeping Firefox as requested 🦊"
     fi
 elif [ "$firefox_status" = "installed" ]; then
-    read -p "🔄 Would you like to replace Firefox with Brave? (y/n) " -n 1 -r
-    echo
-
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if user_confirm "🔄 Would you like to replace Firefox with Brave?"; then
         # Remove ALL Firefox variants
         echo -e "\n🧹 Removing Firefox variants:"
         for firefox_pkg in firefox firefox-esr firefox-mozilla-build; do
@@ -413,7 +474,7 @@ elif [ "$firefox_status" = "installed" ]; then
 
             if ! $brave_installed; then
                 echo -n "📦 Installing Brave browser... "
-                if curl -fsS https://dl.brave.com/install.sh | sudo sh > /dev/null 2>&1; then
+                if curl -fsS https://dl.brave.com/install.sh | sh > /dev/null 2>&1; then
                     if command -v brave-browser >/dev/null 2>&1 || \
                        command -v brave >/dev/null 2>&1; then
                         echo "✅"
@@ -432,9 +493,9 @@ elif [ "$firefox_status" = "installed" ]; then
             fi
 
             # Configure policy directory
-            sudo mkdir -p /etc/brave/policies/managed > /dev/null 2>&1
+            mkdir -p /etc/brave/policies/managed > /dev/null 2>&1
             if [ -f "policy.json" ]; then
-                sudo cp policy.json /etc/brave/policies/managed/honest_policy.json > /dev/null 2>&1
+                cp policy.json /etc/brave/policies/managed/honest_policy.json > /dev/null 2>&1
                 echo "✅ Brave configured with honest_policy.json 🎯"
             else
                 echo "⚠️  policy.json not found - Brave installed but not configured ⚠️"
