@@ -9,7 +9,13 @@ I created this script for Honest Repair, my phone/computer repair shop located i
 * Removes unnecessary applications, specifically Element (`mintchat`), Hypnotix, and Thunderbird. This is done in an attempt to minimize confusion for the technologically challenged.
 * Configures [Mullvad DNS with DNS-over-TLS](https://mullvad.net/en/help/dns-over-https-and-dns-over-tls#linux) for enhanced privacy.
 * Optionally allows you to replace LibreOffice with ONLYOFFICE (downloaded from Flathub).
-* Optionally allows you to replace Firefox with Brave (using official installation script) along with a custom management policy that removes undesirable settings.
+* Optionally allows you to replace Firefox with Brave (using official installation script) along with a custom management policy that removes/changes undesirable settings such as:
+  * Web3
+  * Rewards
+  * Tor
+  * AI features
+  * Advertisements (Talk, VPN, Leo, etc.)
+  * Telemetry (WIP)
 ### Usage
 1. Download both `honest-mintify` and `policy.json`, keep them in the same directory.
 2. Allow it to be ran as a program:
