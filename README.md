@@ -5,6 +5,8 @@
 
 ### Why?
 I created this script for Honest Repair, my phone/computer repair shop located in Fenton, Missouri. It is tailored towards my needs only. I am open-sourcing it because I believe in FOSS, and I want to be transparent with what scripts I run on customer devices.
+
+Note: DO NOT RUN RANDOM SCRIPTS OFF THE INTERNET, PLEASE LOOK OVER THE SCRIPT FIRST BEFORE RUNNING IT FOR YOUR OWN SECURITY!
 ### Features
 * Removes unnecessary applications, specifically Element (`mintchat`), Hypnotix, and Thunderbird. This is done in an attempt to minimize confusion for the technologically challenged.
 * Configures [Mullvad DNS with DNS-over-TLS](https://mullvad.net/en/help/dns-over-https-and-dns-over-tls#linux) for enhanced privacy.
