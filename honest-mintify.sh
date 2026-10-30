@@ -225,7 +225,9 @@ install -d /etc/systemd/resolved.conf.d
 cat > /etc/systemd/resolved.conf.d/99-adguard-dot.conf <<'EOF'
 [Resolve]
 # AdGuard DNS "Default" = blocks ads + trackers
-DNS=94.140.14.14#dns.adguard.com 94.140.15.15#dns.adguard.com 2a10:50c0::ad1:ff#dns.adguard.com 2a10:50c0::ad2:ff#dns.adguard.com
+# empty DNS= first wipes any servers left in resolved.conf by older setups
+DNS=
+DNS=94.140.14.14#dns.adguard-dns.com 94.140.15.15#dns.adguard-dns.com 2a10:50c0::ad1:ff#dns.adguard-dns.com 2a10:50c0::ad2:ff#dns.adguard-dns.com
 DNSOverTLS=yes
 DNSSEC=allow-downgrade
 Domains=~.
